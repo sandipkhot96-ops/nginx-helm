@@ -9,7 +9,7 @@ kind: Pod
 spec:
   containers:
   - name: helm
-    image: jenkins-agent-k8s:latest
+    image: sandipkhot96/jenkins-agent-k8s:latest
     command:
     - cat
     tty: true
