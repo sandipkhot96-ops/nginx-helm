@@ -1,60 +1,101 @@
 pipeline {
-    agent {
-        kubernetes {
-            label 'helm-nginx-agent'
-            defaultContainer 'jnlp'
-        }
+  agent {
+    kubernetes {
+      label 'helm-nginx'
+      defaultContainer 'jnlp'
+      yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: helm
+    image: jenkins-agent-k8s:latest
+    command:
+    - cat
+    tty: true
+"""
+    }
+  }
+
+  environment {
+    NAMESPACE = "nginx"
+    RELEASE   = "nginx"
+    CHART     = "bitnami/nginx"
+  }
+
+  stages {
+
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
     }
 
-    environment {
-        NAMESPACE = "nginx"
-        RELEASE   = "nginx"
-        CHART     = "nginx"
-        REPO      = "https://charts.bitnami.com/bitnami"
+    stage('Helm version check') {
+      steps {
+        container('helm') {
+          sh 'helm version'
+        }
+      }
     }
 
-    stages {
-
-        stage('Verify Tools') {
-            steps {
-                sh '''
-                  kubectl version --client
-                  helm version
-                '''
-            }
+    stage('Add Helm repo') {
+      steps {
+        container('helm') {
+          sh '''
+            helm repo add bitnami https://charts.bitnami.com/bitnami
+            helm repo update
+          '''
         }
-
-        stage('Prepare Kubernetes Namespace') {
-            steps {
-                sh '''
-                  kubectl get namespace ${NAMESPACE} \
-                  || kubectl create namespace ${NAMESPACE}
-                '''
-            }
-        }
-
-        stage('Deploy NGINX using Helm') {
-            steps {
-                sh '''
-                  helm repo add bitnami ${REPO}
-                  helm repo update
-
-                  helm upgrade --install ${RELEASE} bitnami/${CHART} \
-                    --namespace ${NAMESPACE} \
-                    --values values.yaml \
-                    --wait \
-                    --timeout 5m
-                '''
-            }
-        }
-
-        stage('Verify Deployment') {
-            steps {
-                sh '''
-                  kubectl get pods -n ${NAMESPACE}
-                  kubectl get svc -n ${NAMESPACE}
-                '''
-            }
-        }
+      }
     }
+
+    stage('Helm lint (safe check)') {
+      steps {
+        container('helm') {
+          sh '''
+            helm lint .
+          '''
+        }
+      }
+    }
+
+    stage('Helm dry-run (NO changes)') {
+      steps {
+        container('helm') {
+          sh '''
+            helm upgrade --install $RELEASE $CHART \
+              --namespace $NAMESPACE \
+              --create-namespace \
+              -f values.yaml \
+              --dry-run
+          '''
+        }
+      }
+    }
+
+    stage('Deploy NGINX (Helm only)') {
+      steps {
+        container('helm') {
+          sh '''
+            helm upgrade --install $RELEASE $CHART \
+              --namespace $NAMESPACE \
+              --create-namespace \
+              -f values.yaml \
+              --wait \
+              --timeout 5m
+          '''
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "✅ NGINX deployed safely using Helm"
+    }
+    failure {
+      echo "❌ Deployment failed — no destructive action taken"
+    }
+  }
 }
