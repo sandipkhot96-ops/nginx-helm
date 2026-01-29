@@ -7,16 +7,13 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
-  serviceAccountName:jenkins-sa
+  serviceAccountName: jenkins-sa
   containers:
   - name: helm
     image: sandipkhot96/jenkins-agent-k8s:latest
     command:
     - cat
     tty: true
-  # Uncomment if your Docker Hub image is private
-  # imagePullSecrets:
-  #   - name: regcred
 """
         }
     }
