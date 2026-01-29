@@ -7,6 +7,7 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
+  serviceAccountName:jenkins-sa
   containers:
   - name: helm
     image: sandipkhot96/jenkins-agent-k8s:latest
