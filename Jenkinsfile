@@ -52,28 +52,25 @@ spec:
             }
         }
 
-        stage('Helm dry-run') {
+        stage('Deploy NGINX (Helm)') {
             steps {
                 container('helm') {
                     sh '''
                       helm upgrade --install $RELEASE $CHART \
                         --namespace $NAMESPACE \
-                        --create-namespace \
-                        --dry-run
+                        --create-namespace
                     '''
                 }
             }
         }
 
-        stage('Deploy NGINX') {
+        stage('Verify rollout') {
             steps {
                 container('helm') {
                     sh '''
-                      helm upgrade --install $RELEASE $CHART \
-                        --namespace $NAMESPACE \
-                        --create-namespace \
-                        --wait \
-                        --timeout 10m
+                      kubectl rollout status deployment/nginx \
+                        -n $NAMESPACE \
+                        --timeout=5m
                     '''
                 }
             }
@@ -82,10 +79,10 @@ spec:
 
     post {
         success {
-            echo "✅ NGINX deployed successfully via Helm"
+            echo "✅ NGINX deployed and verified successfully"
         }
         failure {
-            echo "❌ Deployment failed — check Helm logs"
+            echo "❌ Deployment failed during rollout verification"
         }
     }
 }
